@@ -6,10 +6,17 @@
 
 ### Setting the scene
 
-- I only want my command to appear in notebooks
-- I know that this already holds true for built-in commands
-- We can hypothesise that the disable-command feature is also what hides it from the combo box with {kbd}`Ctrl` + {kbd}`Shift` + {kbd}`C`
-- Let's pick a command and look at it, e.g. `run selected`.
+The context for this document is that we have a [JupyterLab extension](https://github.com/agoose77/jupyterlab-stateless-run) which provides a new command (with shortcut). Right now, this command appears in all contexts, whereas we want to enable it only for notebooks.
+
+To set about fixing this, how would one approach the JupyterLab code-base to figure out the proper code to write? We can start by listing our initial state:
+
+:::{important} Initial assumptions and ideas
+
+- I only want my command to appear in notebooks.
+- I know that this already holds true for built-in commands like "Render all Markdown".
+- We can hypothesise that the disable-command feature is also what hides it from the combo box (via {kbd}`Ctrl` + {kbd}`Shift` + {kbd}`C`).
+- We can therefore investigate how command works, to learn about the proper API.
+  :::
 
 ### Searching for example commands
 
@@ -156,6 +163,7 @@ Clicking on the [`commands` member](https://lumino.readthedocs.io/en/latest/api/
 Screenshot showing the `commands` property of the `Application` class.
 :::
 
+## WIP
 - I'm expecting to see an extension that uses the `addCommand` feature that we are using to add commands.
 - I come across something in `packages/mainmenu-extension/schema/`, let's click that link — I'm expecting something main-menu-like: https://github.com/jupyterlab/jupyterlab/blob/7bca584707aee4ec29cba40a814bdd787f566219/packages/mainmenu-extension/schema/plugin.json#L105
 - I navigate to the root of this `mainmenu-extension` package, because I'm expecting to see this implemented in TypeScript, not JSON.
