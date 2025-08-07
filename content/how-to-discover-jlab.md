@@ -64,6 +64,8 @@ This singular search result matches against a package called `notebook-extension
 JupyterLab is mostly built out of extensions that build upon a core package. Even core functionality like the Notebook viewer, or the file browser, is implemented using this mechanism. This makes it possible for third-party extensions to replace these components with their own, and/or extend the existing functionality.
 :::
 
+(sec:ref-ex)=
+
 ### Looking at our example
 
 Now that we've found a file containing a known notebook-only extension, we can see whether it helps us to understand more about JupyterLab's conditional command rendering. We're already expecting to see the `addCommand` API method being used.
@@ -96,6 +98,8 @@ This is probably the name of the function we'll need to define to determine whet
 (sec:learn-by-docs)=
 
 ## Learn by API docs
+
+### Walking through the reference
 
 One of the easiest ways to find useful APIs is to search through existing code to find usages. If you're into LLMs (and agree with their use), this is something that LLMs are quite good at. Once you've found usages, though, it can be helpful to pivot into using the API documentation that gives a technical picture of how to use the various application APIs. JupyterLab has its own [API reference](https://jupyterlab.readthedocs.io/en/latest/api/modules.html). First, let's figure out who owns the `addCommand` method. The `commands` variable in @code:nb-cmd is defined above (see @code:nb-cmds):
 
@@ -163,23 +167,104 @@ Clicking on the [`commands` member](https://lumino.readthedocs.io/en/latest/api/
 Screenshot showing the `commands` property of the `Application` class.
 :::
 
-## WIP
-- I'm expecting to see an extension that uses the `addCommand` feature that we are using to add commands.
-- I come across something in `packages/mainmenu-extension/schema/`, let's click that link — I'm expecting something main-menu-like: https://github.com/jupyterlab/jupyterlab/blob/7bca584707aee4ec29cba40a814bdd787f566219/packages/mainmenu-extension/schema/plugin.json#L105
-- I navigate to the root of this `mainmenu-extension` package, because I'm expecting to see this implemented in TypeScript, not JSON.
-- I see `src/index.ts`, and open it up
-- I search for "run selected" in this file
-- I find some function `addSemanticCommand` that defines a `Run Selected` function: https://github.com/jupyterlab/jupyterlab/blob/7bca584707aee4ec29cba40a814bdd787f566219/packages/mainmenu-extension/src/index.ts#L615-L628
-- I click on `addSemanticCommand` to bring up GitHub's rich explorer
-- On the RHS I see "addSemanticCommand" defined in `packages/application/src/utils.ts`
-- This feels confusing, and a rabbit hole --- I don't see any specific "am I enabled" logic
+Now we can look at the [type definition](https://lumino.readthedocs.io/en/latest/api/classes/commands.CommandRegistry-1.html) of the `CommandRegistry` class, visible in @fig:jlab-api-app-commands (see @fig:jlab-api-commands):
+:::{figure} media/jupyterlab-api-commands.png
+:label: fig:jlab-api-commands
 
-## Step back
+Screenshot showing the `CommandRegistry` class. Notice that the name of the documentation resource has changed in the top left from `@jupyterlab` to `@lumino`. This is because Lumino is a widget framework, built for and used by JupyterLab!
+:::
+This class defines the `addCommand` method that we are already familiar with. Let's now look at the [signature of this method](https://lumino.readthedocs.io/en/latest/api/classes/commands.CommandRegistry-1.html#addCommand), by clicking on it (see @fig:jlab-api-add-command):
 
-- I do see `codeRunners.run`. What happens if I search for that?
-- I get a hit on `packages/notebook-extension`! that sounds promising: https://github.com/jupyterlab/jupyterlab/blob/7bca584707aee4ec29cba40a814bdd787f566219/packages/notebook-extension/src/index.ts#L3836
-- I can see an `isEnabled` function.
-- How do I use it? I don't have `semanticCommand`...
-- Let's look at what `addSemanticCommand.add` does by clicking `add`' here: https://github.com/jupyterlab/jupyterlab/blob/7bca584707aee4ec29cba40a814bdd787f566219/packages/notebook-extension/src/index.ts#L3836
-- This takes me to the implementation of add: https://github.com/jupyterlab/jupyterlab/blob/main/packages/apputils/src/semanticCommand.ts#L57
--
+:::{figure} media/jupyterlab-api-add-command.png
+:label: fig:jlab-api-add-command
+
+Screenshot showing the `addCommand` method of the `CommandRegistry` class.
+:::
+
+We can see that _this_ method takes some options, called `options`, of type `ICommandOptions`. Let's navigate [there](https://lumino.readthedocs.io/en/latest/api/interfaces/commands.CommandRegistry.ICommandOptions.html) (see @fig:jlab-api-command-options)!
+:::{figure} media/jupyterlab-api-command-options.png
+:label: fig:jlab-api-command-options
+
+Screenshot showing the `CommandOptions` interface.
+:::
+
+Here, finally, we see the `isEnabled` [method](https://lumino.readthedocs.io/en/latest/api/interfaces/commands.CommandRegistry.ICommandOptions.html#isEnabled) that we were looking for! From the `properties` section of this API reference page, we can observe that the `isEnabled` member is _optional_, but if it is defined must confirm to some type `CommandFunc<boolean>`. Let's click on [`CommandFunc`](https://lumino.readthedocs.io/en/latest/api/types/commands.CommandRegistry.CommandFunc.html), and figure out what _that_ generic type actually resolves to (see @fig:jlab-api-command-func):
+:::{figure} media/jupyterlab-api-command-func.png
+:label: fig:jlab-api-command-func
+
+Screenshot showing the `CommandFunc<T>` generic type.
+:::
+
+### Summarising our findings
+
+OK, so we've found that a command _may_ define an `isEnabled` member. If it is defined, we should give it the type `() -> boolean`, which is TypeScript for a function that returns a boolean. What should this function test? See @sec:test-fn!
+
+(sec:test-fn)=
+
+## The business (logic) of enablement
+
+Returning to our reference example in @sec:ref-ex, the `isEnabled` function was actually passed in as a function argument to `addCommands` (see @code:nb-cmds). We can go hunting for invocations of `addCommands` in the same module, and end up at [L1776](https://github.com/jupyterlab/jupyterlab/blob/31d45658d408fc4170ef91cce67c9c89645b1038/packages/notebook-extension/src/index.ts#L1776). That invocation uses a local variable `isEnabled`, defined [much higher in the file](https://github.com/jupyterlab/jupyterlab/blob/31d45658d408fc4170ef91cce67c9c89645b1038/packages/notebook-extension/src/index.ts#L593-L595). You can discover this by reading through the source code, or using GitHub's helpful inspector which lets you click on variable definitions, which pops up with a symbol menu (see @fig:gh-symbols):
+:::{figure} media/github-symbols.png
+:label: fig:gh-symbols
+
+Screenshot showing All Symbols view in GitHub.
+:::
+
+Clicking the `isEnabled` _definition_ on L593 jumps [much higher in the file](https://github.com/jupyterlab/jupyterlab/blob/31d45658d408fc4170ef91cce67c9c89645b1038/packages/notebook-extension/src/index.ts#L593-L595), as expected!
+
+You'll spot that this function is thin: it calls another function `Private.isEnabled(shell, tracker)`. `Private` is a JupyterLab-specific convention: JupyterLab uses `Private` namespaces to define implementation that should not be used by other code. So, we already know that we shouldn't be using the code here, but we _can_ look at how it is defined for inspiration!
+
+Let's search within this file for `namespace Private`, which yields [the namespace definition](https://github.com/jupyterlab/jupyterlab/blob/31d45658d408fc4170ef91cce67c9c89645b1038/packages/notebook-extension/src/index.ts#L3852).
+
+We can then find `isEnabled` [nested within](https://github.com/jupyterlab/jupyterlab/blob/31d45658d408fc4170ef91cce67c9c89645b1038/packages/notebook-extension/src/index.ts#L3883-L3891). It's very simple (see @code:priv-is-enabled):
+
+```{code} typescript
+:filename: jupyterlab/packages/notebook-extension/src/index.ts
+:lineno-start: 3880
+:label: code:priv-is-enabled
+
+  /**
+   * Whether there is an active notebook.
+   */
+  export function isEnabled(
+    shell: JupyterFrontEnd.IShell,
+    tracker: INotebookTracker
+  ): boolean {
+    return (
+      tracker.currentWidget !== null &&
+      tracker.currentWidget === shell.currentWidget
+    );
+  }
+
+```
+
+The code in @code:priv-is-enabled is simply testing whether the current shell widget is the current tracker widget. This raises two questions ... what is a `shell` and what is a `tracker`? Let's search the API docs for `shell` (see @fig:jlab-api-srch-shell) by first navigating to the _JupyterLab_ API docs, away from Lumino:
+
+:::{figure} media/jupyterlab-api-srch-shell.png
+:label: fig:jlab-api-srch-shell
+
+Screenshot showing the search results for `shell` in the JupyterLab API docs.
+:::
+
+We can see many entries. Let's choose the least nested, most important sounding one, i.e. [the `application.LabShell` class](https://jupyterlab.readthedocs.io/en/latest/api/classes/application.LabShell.html). The resulting page states that `shell` is
+
+> The application shell for JupyterLab.
+>
+> -- [JupyterLab API docs](https://jupyterlab.readthedocs.io/en/latest/api/classes/application.LabShell.html)
+
+Not that useful a definition ... but we know it's an "application shell"! What about the `tracker`?
+:::{figure} media/jupyterlab-api-tracker.png
+:label: fig:jlab-api-tracker
+
+Screenshot showing the search results for `tracker` in the JupyterLab API docs.
+:::
+
+We can search for `tracker` using the same logic. We see a [notebook result](https://jupyterlab.readthedocs.io/en/latest/api/interfaces/notebook.NotebookTools.IOptions.html#tracker) that has a `tracker` property. There, we can see an `INotebookTracker` interface type. Let's navigate [there](https://jupyterlab.readthedocs.io/en/latest/api/interfaces/notebook.INotebookTracker.html) to learn about it. It says that the notebook `tracker` is
+
+> An object that tracks notebook widgets.
+>
+> -- [JupyterLab API docs](https://jupyterlab.readthedocs.io/en/latest/api/interfaces/notebook.INotebookTracker.html)
+
+I think you can imagine what this means — there's an object whose responsibility is keeping track of notebook widgets. I.e. @code:priv-is-enabled is checking whether the current notebook widget is the current application widget! It stands to reason that we can simply copy this.
+
+Fin.
