@@ -8,8 +8,16 @@ project:
   # authors: []
   # github:
   # To autogenerate a Table of Contents, run "myst init --write-toc"
+  author:
+    name: Angus Hollands
+    bsky: '@agoose77.bsky.social'
+    mastodon: '@agoose77@fosstodon.org'
+    github: agoose77
+  toc:
+    - file: content/how-to-discover-jlab.md
 site:
   template: book-theme
-  # options:
+  options:
+    logo_text: Notes
   #   favicon: favicon.ico
   #   logo: site_logo.png
